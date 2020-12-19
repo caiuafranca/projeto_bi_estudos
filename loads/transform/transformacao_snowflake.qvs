@@ -1,5 +1,5 @@
-CNAE:
-LOAD cd_cnpj as chave_fato, 
+DIM_CNAE:
+LOAD cd_cnpj as sk_cnae, 
      cod_ordem, 
      cod_ramo, 
      desc_ramo, 
@@ -8,11 +8,11 @@ FROM
 [..\..\files\dataMirrors\extract_cnae.csv]
 (txt, codepage is 28591, embedded labels, delimiter is ';', msq);
 
-STORE CNAE INTO '..\..\files\dataTransformed\CNAE.qvd';
-STORE CNAE INTO '..\..\files\storage_pbi\CNAE.csv'(txt);
+STORE DIM_CNAE INTO '..\..\files\dataTransformed\DIM_CNAE.qvd';
+STORE DIM_CNAE INTO '..\..\files\storage_pbi\DIM_CNAE.csv'(txt);
 
 
-SETOR_ATIVIDADE:
+DIM_SETOR_ATIVIDADE:
 LOAD ramo_atividade, 
      divisao, 
      chave_cnae
@@ -20,8 +20,8 @@ FROM
 [..\..\files\dataMirrors\extract_setor_atividades.csv]
 (txt, utf8, embedded labels, delimiter is ';', msq);
 
-STORE SETOR_ATIVIDADE INTO '..\..\files\dataTransformed\SETOR_ATIVIDADE.qvd';
-STORE SETOR_ATIVIDADE INTO '..\..\files\storage_pbi\SETOR_ATIVIDADE.csv'(txt);
+STORE DIM_SETOR_ATIVIDADE INTO '..\..\files\dataTransformed\DIM_SETOR_ATIVIDADE.qvd';
+STORE DIM_SETOR_ATIVIDADE INTO '..\..\files\storage_pbi\DIM_SETOR_ATIVIDADE.csv'(txt);
 
 EMPRESAS_TEMP:
 LOAD cd_cnpj, 
@@ -53,24 +53,15 @@ FROM
 (txt, codepage is 28591, embedded labels, delimiter is ';', msq);
 
 NoConcatenate
-EMPRESAS:
+DIM_EMPRESAS:
 LOAD 
-	 cd_cnpj as chave_fato,
-     if(fl_matriz = 1, 'SIM', 'NAO') AS flag_matriz, 
-     dt_abertura, 
+	 cd_cnpj as sk_empresas,
+     if(fl_matriz = 1, 'SIM', 'NAO') AS flag_matriz,  
      nm_razao_social, 
      cd_natureza_juridica, 
-     de_natureza_juridica, 
-     nm_logradouro, 
-     nu_logradouro, 
-     cd_cep, 
-     nm_bairro, 
-     nm_municipio, 
-     sg_uf, 
+     de_natureza_juridica,      
      de_situacao, 
-     de_classif_natureza_juridica, 
-     vl_latitude, 
-     vl_longitude,  
+     de_classif_natureza_juridica,       
      qt_filial,  
      de_saude_tributaria, 
      de_nivel_atividade,
@@ -79,13 +70,56 @@ LOAD
      if(fl_optante_simei = 1, 'SIM', 'NAO') AS flag_optante_simei
 Resident EMPRESAS_TEMP;
 
-STORE EMPRESAS INTO '..\..\files\dataTransformed\EMPRESAS.qvd';
-STORE EMPRESAS INTO '..\..\files\storage_pbi\EMPRESAS.csv'(txt);
- 
+STORE DIM_EMPRESAS INTO '..\..\files\dataTransformed\DIM_EMPRESAS.qvd';
+STORE DIM_EMPRESAS INTO '..\..\files\storage_pbi\DIM_EMPRESAS.csv'(txt);
+
+NoConcatenate
+DIM_TEMPO:
+LOAD
+	dt_abertura as sk_tempo,
+	dt_abertura as data,
+	month(dt_abertura) as mes,
+	year(dt_abertura) as ano	
+	
+Resident EMPRESAS_TEMP;
+
+STORE DIM_TEMPO INTO '..\..\files\dataTransformed\DIM_TEMPO.qvd';
+STORE DIM_TEMPO INTO '..\..\files\storage_pbi\DIM_TEMPO.csv'(txt);
+
+NoConcatenate
+DIM_REGIAO:
+LOAD 
+	 cd_cnpj as sk_regiao,     
+     nm_logradouro, 
+     nu_logradouro, 
+     cd_cep, 
+     nm_bairro, 
+     nm_municipio, 
+     sg_uf,     
+     vl_latitude, 
+     vl_longitude      
+Resident EMPRESAS_TEMP;
+
+STORE DIM_REGIAO INTO '..\..\files\dataTransformed\DIM_REGIAO.qvd';
+STORE DIM_REGIAO INTO '..\..\files\storage_pbi\DIM_REGIAO.csv'(txt);
+
+
 FATO_EMPRESAS:
 LOAD 
-     cd_cnpj as chave_fato,
-     cd_cnpj as quantidade_empresa,      
+     cd_cnpj as dw_key,
+     cd_cnpj as sk_empresas,
+     cd_cnpj as sk_cnae,
+     cd_cnpj as sk_regiao, 
+     dt_abertura as sk_tempo,
+     1 as quantidade_empresa,
+     if(fl_matriz = 1, 1, 0) AS quantidade_empresas_matriz,
+     if(fl_matriz <> 1, 1, 0) AS quantidade_empresas_filiais,
+     if(fl_optante_simples = 1 and fl_optante_simei = 1, 1, 0) AS quantidade_empresas_simples_simei,
+     if(de_natureza_juridica = 'PUBLICO', 1, 0) AS quantidade_empresas_publicas,
+     if(de_natureza_juridica = 'PRIVADO', 1, 0) AS quantidade_empresas_privadas,
+     if(de_natureza_juridica = 'MISTA', 1, 0) AS quantidade_empresas_mistas,
+     if(de_situacao = 'ATIVA', 1, 0) AS quantidade_empresas_ativa,
+     if(de_situacao = 'BAIXADO', 1, 0) AS quantidade_empresas_baixada,        
      vl_total_veiculos_antt, 
      vl_total_veiculos_leves, 
      vl_total_veiculos_pesados,
@@ -102,6 +136,3 @@ STORE FATO_EMPRESAS INTO '..\..\files\storage_pbi\FATO_EMPRESAS.csv'(txt);
 
 
 DROP Table EMPRESAS_TEMP;
-
-
-
